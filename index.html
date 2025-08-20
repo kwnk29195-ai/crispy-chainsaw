@@ -1,0 +1,362 @@
+<!DOCTYPE html><html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ChatX HTML — دردشة احترافية (بدون إطار عمل)</title>
+  <style>
+    :root{
+      --bg: #f7f7fb; --card:#ffffff; --muted:#6b7280; --text:#0f172a; --primary:#2563eb; --border:#e5e7eb;
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:linear-gradient(135deg,#fafafa,#f1f5f9);color:var(--text);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, "Noto Naskh Arabic", Arial}
+    .app{max-width:1200px;margin:16px auto;padding:0 12px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .row{display:grid;grid-template-columns:280px 1fr 360px}
+    @media (max-width: 1024px){.row{grid-template-columns:280px 1fr}.thread{display:none}}
+    @media (max-width: 640px){.row{grid-template-columns:1fr}.sidebar{display:none}}
+    .header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+    .title{font-weight:700}
+    .muted{color:var(--muted)}
+    .sidebar{border-inline-end:1px solid var(--border)}
+    .search{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border)}
+    .search input{flex:1;border:1px solid var(--border);border-radius:12px;padding:8px 10px;background:#fff}
+    .chat-list{max-height:70vh;overflow:auto;padding:8px}
+    .chat-item{width:100%;text-align:start;border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin:8px 0;background:#fff;cursor:pointer}
+    .chat-item.active{outline:2px solid var(--primary)}
+    .messages{display:flex;flex-direction:column;min-height:70vh;max-height:75vh}
+    .messages-scroll{flex:1;overflow:auto;padding:16px}
+    .bubble-row{display:flex;margin:10px 0}
+    .bubble-row.mine{justify-content:flex-end}
+    .avatar{width:32px;height:32px;border-radius:999px}
+    .bubble{max-width:80%;padding:10px 12px;border:1px solid var(--border);border-radius:18px;background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.03);white-space:pre-wrap}
+    .mine .bubble{background:#f3f4f6}
+    .bubble-meta{font-size:10px;color:#6b7280;margin-bottom:6px}
+    .bubble-actions{display:flex;gap:12px;align-items:center;font-size:12px;color:#6b7280;margin-top:6px}
+    .reactions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:#f9fafb}
+    .composer{display:flex;gap:8px;align-items:flex-end;padding:10px;border-top:1px solid var(--border)}
+    .composer textarea{flex:1;min-height:44px;max-height:150px;resize:vertical;border:1px solid var(--border);border-radius:14px;padding:8px 10px}
+    .btn{border:1px solid var(--border);background:#fff;border-radius:14px;padding:8px 10px;cursor:pointer}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.icon{width:40px;height:40px;display:inline-grid;place-items:center}
+    .thread{border-inline-start:1px solid var(--border);display:flex;flex-direction:column}
+    .thread-head{padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+    .thread-body{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+    .thread-item{border:1px solid var(--border);border-radius:14px;background:#f9fafb;padding:8px 10px}
+    .thread-compose{display:flex;gap:8px;padding:10px;border-top:1px solid var(--border)}
+    .emoji-panel{position:absolute;inset-inline-start:0;bottom:48px;width:260px;background:#fff;border:1px solid var(--border);border-radius:12px;padding:8px;display:grid;grid-template-columns:repeat(6,1fr);gap:8px;box-shadow:0 6px 24px rgba(0,0,0,.08)}
+    .hidden{display:none}
+    .topbar{display:flex;align-items:center;justify-content:space-between}
+    .hint{font-size:12px;color:#6b7280;display:flex;align-items:center;gap:6px}
+    .footer-note{margin-top:10px;text-align:center;font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header topbar">
+        <div class="title">💬 ChatX — دردشة احترافية (HTML فقط)</div>
+        <div class="hint">جرّب الإيموجي والتسجيل الصوتي 🎙️</div>
+      </div><div class="row">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="q" placeholder="بحث في المحادثات" />
+      </div>
+      <div id="chatList" class="chat-list"></div>
+      <div class="header muted" style="border-top:1px solid var(--border)">ChatX • واجهة تجريبية</div>
+    </aside>
+
+    <!-- Messages -->
+    <main class="messages">
+      <div class="header">
+        <div id="chatTitle" class="title">—</div>
+        <div class="hint">تسجيل صوتي، رياكشن، وردود</div>
+      </div>
+      <div id="messages" class="messages-scroll"></div>
+      <div class="composer">
+        <button id="attachBtn" class="btn icon" title="إرفاق">📎</button>
+        <div style="position:relative">
+          <button id="emojiBtn" class="btn icon" title="إيموجي">😀</button>
+          <div id="emojiPanel" class="emoji-panel hidden"></div>
+        </div>
+        <textarea id="input" placeholder="اكتب رسالة…"></textarea>
+        <button id="sendBtn" class="btn primary">إرسال</button>
+        <button id="micBtn" class="btn">صوت</button>
+      </div>
+    </main>
+
+    <!-- Thread -->
+    <aside class="thread">
+      <div class="thread-head">
+        <div class="title" style="font-size:14px">التعليقات</div>
+        <button id="closeThread" class="btn">إغلاق</button>
+      </div>
+      <div class="header muted">الرسالة الأصلية</div>
+      <div id="threadRoot" class="header" style="gap:8px"></div>
+      <div id="threadBody" class="thread-body"></div>
+      <div class="thread-compose">
+        <input id="threadInput" placeholder="أضف تعليقًا…" style="flex:1;border:1px solid var(--border);border-radius:12px;padding:8px 10px">
+        <button id="threadSend" class="btn primary">إرسال</button>
+      </div>
+    </aside>
+  </div>
+</div>
+<div class="footer-note">⚠️ هذا نموذج واجهة فقط—لا يوجد خادم. أضف WebSocket/Auth للتطبيق الحقيقي.</div>
+
+  </div>  <script>
+    // ====== بيانات وتخزين ======
+    const LS_KEY = 'chatx_html_data_v1';
+    const me = { id:'u1', name:'أنا' };
+    const EMOJIS = ['👍','❤️','😂','😮','😢','👏','🔥','🎉','😄','🙏','😆','💯'];
+
+    function uid(){ return Math.random().toString(36).slice(2); }
+    function timeStr(ts){ return new Date(ts).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
+
+    let state = loadState() || initState();
+    function initState(){
+      return {
+        activeId: 'c1',
+        chats: [
+          { id:'c1', title:'فريق المشروع', members:['u1','u2','u3'], unread:2, messages:[
+            { id:uid(), senderId:'u2', senderName:'سارة', createdAt:Date.now()-1000*60*30, text:'مرحبا! هذا نموذج دردشة يشبه واتس/فيس 🙂', reactions:{'👍':1,'❤️':1}, replies:[] },
+            { id:uid(), senderId:'u3', senderName:'علي', createdAt:Date.now()-1000*60*25, text:'جربوا تضيفوا رياكشن أو تسجلوا صوت ✨', reactions:{}, replies:[] },
+          ]},
+          { id:'c2', title:'دردشة عامة', members:['u1','u4'], messages:[] },
+        ],
+        threadFor: null // message id
+      };
+    }
+    function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+    function loadState(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)); }catch{ return null } }
+
+    // ====== عناصر DOM ======
+    const chatListEl = document.getElementById('chatList');
+    const qEl = document.getElementById('q');
+    const chatTitleEl = document.getElementById('chatTitle');
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const micBtn = document.getElementById('micBtn');
+    const emojiBtn = document.getElementById('emojiBtn');
+    const emojiPanel = document.getElementById('emojiPanel');
+    const closeThreadBtn = document.getElementById('closeThread');
+    const threadRootEl = document.getElementById('threadRoot');
+    const threadBodyEl = document.getElementById('threadBody');
+    const threadInputEl = document.getElementById('threadInput');
+    const threadSendBtn = document.getElementById('threadSend');
+
+    // ====== Emoji Panel ======
+    function renderEmojiPanel(){
+      emojiPanel.innerHTML = '';
+      EMOJIS.forEach(e=>{
+        const b = document.createElement('button');
+        b.textContent = e; b.className = 'btn'; b.style.fontSize='18px';
+        b.onclick = ()=>{ inputEl.value += e; hideEmoji(); inputEl.focus(); };
+        emojiPanel.appendChild(b);
+      })
+    }
+    function toggleEmoji(){ emojiPanel.classList.toggle('hidden'); }
+    function hideEmoji(){ emojiPanel.classList.add('hidden'); }
+
+    // ====== تسجيل صوت ======
+    let recording = false; let mediaRecorder = null; let chunks = [];
+    async function startRec(){
+      if(!navigator.mediaDevices || !window.MediaRecorder){ alert('التسجيل الصوتي غير مدعوم في هذا المتصفح'); return; }
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      mediaRecorder = new MediaRecorder(stream);
+      chunks = [];
+      mediaRecorder.ondataavailable = e=> chunks.push(e.data);
+      mediaRecorder.onstop = async ()=>{
+        stream.getTracks().forEach(t=>t.stop());
+        const blob = new Blob(chunks, {type:'audio/webm'});
+        // حفظ دائم كـ DataURL حتى لا تضيع بعد إعادة التحميل
+        const reader = new FileReader();
+        reader.onloadend = ()=>{
+          const dataUrl = reader.result; // base64
+          sendAudio(dataUrl);
+        };
+        reader.readAsDataURL(blob);
+      };
+      mediaRecorder.start();
+      recording = true; micBtn.textContent = 'إيقاف';
+    }
+    async function stopRec(){ if(mediaRecorder){ mediaRecorder.stop(); recording=false; micBtn.textContent='صوت'; } }
+
+    // ====== عمليات الحالة ======
+    function getActiveChat(){ return state.chats.find(c=>c.id===state.activeId); }
+
+    function sendText(text){
+      const c = getActiveChat();
+      c.messages.push({ id:uid(), senderId:me.id, senderName:me.name, createdAt:Date.now(), text, reactions:{}, replies:[] });
+      saveState(); renderMessages(); scrollToBottom();
+    }
+    function sendAudio(dataUrl){
+      const c = getActiveChat();
+      c.messages.push({ id:uid(), senderId:me.id, senderName:me.name, createdAt:Date.now(), audioUrl:dataUrl, reactions:{}, replies:[] });
+      saveState(); renderMessages(); scrollToBottom();
+    }
+    function reactTo(msgId, emoji){
+      const c = getActiveChat();
+      const m = c.messages.find(m=>m.id===msgId);
+      if(!m.reactions) m.reactions = {};
+      m.reactions[emoji] = (m.reactions[emoji]||0)+1;
+      saveState(); renderMessages();
+    }
+    function openThread(msgId){ state.threadFor = msgId; saveState(); renderThread(); }
+    function closeThread(){ state.threadFor = null; saveState(); renderThread(); }
+    function addReply(text){
+      const c = getActiveChat();
+      const m = c.messages.find(m=>m.id===state.threadFor);
+      if(!m.replies) m.replies = [];
+      m.replies.push({ id:uid(), senderId:me.id, senderName:me.name, createdAt:Date.now(), text, reactions:{} });
+      saveState(); renderThread(); renderMessages();
+    }
+
+    // ====== Render القوائم والرسائل ======
+    function renderChatList(){
+      const q = (qEl.value||'').toLowerCase();
+      chatListEl.innerHTML = '';
+      state.chats.filter(c=>c.title.toLowerCase().includes(q)).forEach(c=>{
+        const el = document.createElement('button');
+        el.className = 'chat-item' + (c.id===state.activeId ? ' active':'' );
+        el.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;gap:8px;align-items:center;font-weight:600">👥 ${c.title}</div>
+            ${c.unread ? `<span class="badge">${c.unread}</span>`: ''}
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:4px">${c.messages.length? ('آخر رسالة: '+ (c.messages[c.messages.length-1].text||'صوتية')) : 'لا رسائل بعد'}</div>
+        `;
+        el.onclick = ()=>{ state.activeId = c.id; saveState(); renderAll(); };
+        chatListEl.appendChild(el);
+      });
+    }
+
+    function messageBubble(m){
+      const mine = m.senderId===me.id;
+      const row = document.createElement('div');
+      row.className = 'bubble-row' + (mine ? ' mine' : '');
+      const avatar = document.createElement('img');
+      avatar.className = 'avatar';
+      avatar.alt = m.senderName;
+      avatar.src = (m.avatar || `https://api.dicebear.com/8.x/thumbs/svg?seed=${encodeURIComponent(m.senderName)}`);
+
+      const box = document.createElement('div');
+      box.style.display='flex';
+      box.style.gap='8px';
+      if(mine){ box.style.flexDirection='row-reverse'; }
+
+      const content = document.createElement('div');
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      const meta = document.createElement('div'); meta.className='bubble-meta'; meta.textContent = `${m.senderName} • ${timeStr(m.createdAt)}`;
+      bubble.appendChild(meta);
+      if(m.text){ const t = document.createElement('div'); t.textContent = m.text; bubble.appendChild(t); }
+      if(m.audioUrl){ const a = document.createElement('audio'); a.controls=true; a.src = m.audioUrl; a.style.width='100%'; a.style.marginTop='6px'; bubble.appendChild(a); }
+
+      const actions = document.createElement('div'); actions.className='bubble-actions';
+      // emoji picker per message
+      const reactWrap = document.createElement('div'); reactWrap.style.position='relative';
+      const reactBtn = document.createElement('button'); reactBtn.className='btn'; reactBtn.textContent='😀 رياكشن';
+      const p = document.createElement('div'); p.className='emoji-panel hidden';
+      EMOJIS.forEach(e=>{ const b=document.createElement('button'); b.className='btn'; b.textContent=e; b.onclick=()=>{ reactTo(m.id,e); p.classList.add('hidden'); }; p.appendChild(b); });
+      reactBtn.onclick = ()=>{ p.classList.toggle('hidden') };
+      reactWrap.appendChild(reactBtn); reactWrap.appendChild(p);
+
+      const replyBtn = document.createElement('button'); replyBtn.className='btn'; replyBtn.textContent='↩️ رد'; replyBtn.onclick=()=>openThread(m.id);
+
+      actions.appendChild(reactWrap); actions.appendChild(replyBtn);
+
+      bubble.appendChild(actions);
+
+      // reactions summary
+      if(m.reactions && Object.keys(m.reactions).length){
+        const rs = document.createElement('div'); rs.className='reactions';
+        Object.entries(m.reactions).forEach(([e,c])=>{
+          const b = document.createElement('span'); b.className='badge'; b.innerHTML = `<span style="font-size:16px">${e}</span><span style="font-size:10px">${c}</span>`; rs.appendChild(b);
+        });
+        bubble.appendChild(rs);
+      }
+
+      // replies count
+      const repliesCount = (m.replies && m.replies.length) ? m.replies.length : 0;
+      if(repliesCount){ const small=document.createElement('div'); small.className='muted'; small.style.fontSize='12px'; small.textContent = repliesCount + ' رد'; bubble.appendChild(small); }
+
+      content.appendChild(bubble);
+      box.appendChild(avatar); box.appendChild(content);
+      row.appendChild(box);
+      return row;
+    }
+
+    function renderMessages(){
+      const c = getActiveChat();
+      chatTitleEl.textContent = c.title;
+      messagesEl.innerHTML = '';
+      c.messages.forEach(m=> messagesEl.appendChild(messageBubble(m)));
+    }
+
+    function scrollToBottom(){ messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+    // ====== Thread ======
+    function renderThread(){
+      const c = getActiveChat();
+      const id = state.threadFor;
+      const root = id ? c.messages.find(m=>m.id===id) : null;
+      threadRootEl.innerHTML = '';
+      threadBodyEl.innerHTML = '';
+      if(!root){ return; }
+      // root box
+      const box = document.createElement('div'); box.style.border='1px solid var(--border)'; box.style.borderRadius='12px'; box.style.padding='10px'; box.style.background='#fff'; box.style.width='100%';
+      const meta = document.createElement('div'); meta.className='bubble-meta'; meta.textContent = `${root.senderName} • ${timeStr(root.createdAt)}`;
+      box.appendChild(meta);
+      if(root.text){ const d=document.createElement('div'); d.textContent=root.text; box.appendChild(d); }
+      if(root.audioUrl){ const a=document.createElement('audio'); a.controls=true; a.src=root.audioUrl; a.style.width='100%'; a.style.marginTop='6px'; box.appendChild(a); }
+      threadRootEl.appendChild(box);
+
+      (root.replies||[]).forEach(r=>{
+        const item = document.createElement('div'); item.className='thread-item';
+        item.innerHTML = `<div class="bubble-meta">${r.senderName} • ${timeStr(r.createdAt)}</div>${r.text?('<div>'+escapeHtml(r.text)+'</div>'):''}${r.audioUrl?('<audio controls src="'+r.audioUrl+'" style="width:100%;margin-top:6px"></audio>'):''}`;
+        threadBodyEl.appendChild(item);
+      })
+    }
+
+    // ====== Utils ======
+    function escapeHtml(str){ return str.replace(/[&<>\"]/g, s=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[s])); }
+
+    // ====== أحداث واجهة ======
+    renderEmojiPanel();
+    renderChatList();
+    renderMessages();
+    renderThread();
+    scrollToBottom();
+
+    qEl.addEventListener('input', renderChatList);
+
+    sendBtn.addEventListener('click', ()=>{
+      const t = inputEl.value.trim(); if(!t) return; sendText(t); inputEl.value='';
+    });
+    inputEl.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendBtn.click(); }
+    });
+
+    emojiBtn.addEventListener('click', toggleEmoji);
+    document.addEventListener('click', (e)=>{ if(!emojiPanel.contains(e.target) && e.target!==emojiBtn){ hideEmoji(); } });
+
+    micBtn.addEventListener('click', ()=>{ recording ? stopRec() : startRec(); });
+
+    closeThreadBtn.addEventListener('click', ()=>{ closeThread(); });
+
+    threadSendBtn.addEventListener('click', ()=>{ const t = threadInputEl.value.trim(); if(!t) return; addReply(t); threadInputEl.value=''; });
+    threadInputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); threadSendBtn.click(); } });
+
+    // إعادة الرسم عند تغيير المحادثة
+    function renderAll(){ renderChatList(); renderMessages(); renderThread(); scrollToBottom(); }
+
+    // اكبس على الخلفية لإغلاق أي لوحات مفتوحة داخل الرسائل
+    messagesEl.addEventListener('click', (e)=>{
+      const panels = messagesEl.querySelectorAll('.emoji-panel'); panels.forEach(p=>{ if(!p.contains(e.target)) p.classList.add('hidden'); })
+    });
+  </script></body>
+</html>
